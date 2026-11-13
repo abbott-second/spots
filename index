@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>8-Track Mystery Box</title>
+  <title>Mystery Box</title>
   <style>
     :root {
       --bg-base: #000000;
@@ -532,7 +532,7 @@
   <div class="app-shell">
     <header>
       <div class="header-left">
-        <h1 id="page-title">8-Track Mystery Box</h1>
+        <h1 id="page-title">Mystery Box</h1>
         <p id="page-subtitle">Curate 8 reasons & timestamps to convince a friend.</p>
       </div>
 
@@ -781,7 +781,7 @@
         newBoxBtn.classList.remove('hidden');
         renderListenerGrid();
       } else {
-        titleEl.textContent = 'Create an 8-Track Mystery Box';
+        titleEl.textContent = 'Create a Mystery Box';
         subEl.textContent = 'Pick 8 songs, set exact timestamps, and share the generated link.';
         curatorBar.classList.remove('hidden');
         shareBtn.classList.remove('hidden');
@@ -1191,7 +1191,7 @@
     function setupPlayer(token) {
       if (player) return;
       player = new Spotify.Player({
-        name: '8-Track Mystery Box',
+        name: 'Mystery Box',
         getOAuthToken: async cb => cb(await getValidSpotifyToken() || token),
         volume: 0.8
       });
