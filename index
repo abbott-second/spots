@@ -1,0 +1,1262 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>8-Track Mystery Box</title>
+  <style>
+    :root {
+      --bg-base: #000000;
+      --bg-canvas: #121212;
+      --bg-elevated: #181818;
+      --bg-highlight: #242424;
+      --bg-press: #2a2a2a;
+      --accent: #1ed760;
+      --accent-hover: #3be477;
+      --text-base: #ffffff;
+      --text-subdued: #a7a7a7;
+      --radius-lg: 12px;
+      --radius-md: 8px;
+      --radius-pill: 9999px;
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      background: var(--bg-base);
+      color: var(--text-base);
+      height: 100dvh;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden; /* Locks desktop to 1 screen, zero scroll */
+      padding: 8px 8px 0;
+      gap: 8px;
+    }
+
+    .artist-backdrop {
+      position: fixed;
+      inset: 0;
+      z-index: 0;
+      pointer-events: none;
+      background-position: center 22%;
+      background-size: cover;
+      opacity: 0;
+      filter: saturate(0.8);
+      transition: opacity 0.35s ease, background-image 0.35s ease;
+    }
+    .artist-backdrop.visible { opacity: 0.28; }
+    .artist-backdrop::after {
+      content: "";
+      position: absolute;
+      inset: 0;
+      background: linear-gradient(180deg, rgba(0,0,0,.2), rgba(0,0,0,.86) 48%, #000 86%);
+    }
+
+    @media (max-width: 768px) {
+      body {
+        height: auto;
+        min-height: 100dvh;
+        overflow-y: auto;
+        padding: 0;
+        gap: 0;
+      }
+    }
+
+    /* Buttons (Spotify Pill Style) */
+    button {
+      background: var(--accent);
+      color: #000000;
+      border: none;
+      padding: 10px 20px;
+      border-radius: var(--radius-pill);
+      font-weight: 700;
+      font-size: 13px;
+      letter-spacing: 0.2px;
+      cursor: pointer;
+      transition: transform 0.12s ease, background-color 0.15s ease;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+    }
+    button:hover:not(:disabled) {
+      background: var(--accent-hover);
+      transform: scale(1.03);
+    }
+    button:active:not(:disabled) { transform: scale(0.98); }
+    button:disabled {
+      background: var(--bg-highlight);
+      color: #6a6a6a;
+      cursor: not-allowed;
+    }
+
+    button.ghost {
+      background: rgba(255, 255, 255, 0.08);
+      color: var(--text-base);
+    }
+    button.ghost:hover:not(:disabled) {
+      background: rgba(255, 255, 255, 0.15);
+    }
+
+    /* Inputs (Borderless Tonal Fields) */
+    input, textarea {
+      width: 100%;
+      background: var(--bg-highlight);
+      border: 1px solid transparent;
+      color: var(--text-base);
+      padding: 9px 12px;
+      border-radius: var(--radius-md);
+      font-family: inherit;
+      font-size: 13px;
+      transition: background-color 0.15s ease, border-color 0.15s ease;
+    }
+    input::placeholder, textarea::placeholder { color: #727272; }
+    input:hover, textarea:hover { background: var(--bg-press); }
+    input:focus, textarea:focus {
+      outline: none;
+      background: var(--bg-press);
+      border-color: rgba(255, 255, 255, 0.3);
+    }
+
+    .hidden { display: none !important; }
+
+    /* Main Rounded Canvas (Matches Spotify Desktop Panel) */
+    .app-shell {
+      position: relative;
+      z-index: 1;
+      flex: 1;
+      background: linear-gradient(180deg, rgba(31,31,31,.94) 0%, rgba(18,18,18,.97) 220px);
+      border-radius: var(--radius-lg);
+      display: flex;
+      flex-direction: column;
+      padding: 16px 20px;
+      min-height: 0;
+    }
+
+    @media (max-width: 768px) {
+      .app-shell {
+        border-radius: 0;
+        padding: 16px 14px 96px;
+      }
+    }
+
+    /* Header */
+    header {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      margin-bottom: 14px;
+      flex-shrink: 0;
+    }
+    .header-left h1 {
+      margin: 0;
+      font-size: 1.35rem;
+      font-weight: 800;
+      letter-spacing: -0.4px;
+    }
+    .header-left p {
+      margin: 3px 0 0;
+      font-size: 13px;
+      color: var(--text-subdued);
+    }
+    .header-actions {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
+
+    /* Curator Subject Bar */
+    .curator-meta {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      margin-bottom: 12px;
+      flex-shrink: 0;
+    }
+    .curator-meta input {
+      max-width: 380px;
+      border-radius: var(--radius-pill);
+      padding: 9px 16px;
+      font-weight: 600;
+    }
+    .artist-chip {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      min-width: 0;
+      max-width: 260px;
+      padding: 5px 11px 5px 5px;
+      border-radius: var(--radius-pill);
+      background: rgba(255,255,255,.1);
+      font-size: 12px;
+      font-weight: 700;
+    }
+    .artist-chip img { width: 30px; height: 30px; border-radius: 50%; object-fit: cover; background: #333; }
+    .artist-chip span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    #status-text {
+      font-size: 12px;
+      color: var(--accent);
+      font-weight: 600;
+    }
+
+    /* =========================================================
+       8-SLOT GRID
+       Desktop: 4 columns x 2 rows (fits 100dvh, zero scroll)
+       Mobile:  2 columns x 4 rows (8 cards total, 2 per row)
+       ========================================================= */
+    .grid-8 {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      grid-template-rows: repeat(2, 1fr);
+      gap: 14px;
+      flex: 1;
+      min-height: 0;
+    }
+
+    @media (max-width: 768px) {
+      .grid-8 {
+        grid-template-columns: repeat(2, 1fr);
+        grid-template-rows: auto;
+        gap: 10px;
+      }
+    }
+
+    /* Spotify Elevated Cards */
+    .card {
+      background: var(--bg-elevated);
+      border-radius: var(--radius-lg);
+      padding: 14px;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      transition: background-color 0.2s ease, transform 0.15s ease;
+      min-height: 0;
+      position: relative;
+    }
+    .card:hover { background: var(--bg-highlight); }
+
+    .card.active {
+      background: #232b26;
+      box-shadow: inset 0 0 0 1.5px var(--accent);
+    }
+
+    /* Listener: Sealed Mystery Card */
+    .sealed-card {
+      align-items: center;
+      justify-content: center;
+      text-align: center;
+      cursor: pointer;
+      background: radial-gradient(circle at top, #242424 0%, #181818 100%);
+    }
+    .sealed-card:hover {
+      background: radial-gradient(circle at top, #2c2c2c 0%, #1e1e1e 100%);
+    }
+    .sealed-badge {
+      font-size: 11px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 1.2px;
+      color: var(--accent);
+      margin-bottom: 6px;
+    }
+    .sealed-title {
+      font-size: 1.25rem;
+      font-weight: 800;
+      letter-spacing: -0.3px;
+      margin-bottom: 14px;
+    }
+
+    /* Listener: Revealed Card */
+    .card-header-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 6px;
+    }
+    .card-tag {
+      font-size: 11px;
+      font-weight: 700;
+      color: var(--accent);
+      text-transform: uppercase;
+      letter-spacing: 0.6px;
+    }
+    .reason-text {
+      font-size: 13px;
+      line-height: 1.45;
+      color: #eaeaea;
+      margin: 8px 0;
+      overflow-y: auto;
+      flex: 1;
+    }
+
+    /* Custom Thin Dark Scrollbar */
+    ::-webkit-scrollbar { width: 5px; height: 5px; }
+    ::-webkit-scrollbar-track { background: transparent; }
+    ::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.2); border-radius: 99px; }
+
+    /* Track Pill inside Revealed Card */
+    .track-strip {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      background: rgba(0, 0, 0, 0.35);
+      padding: 7px 9px;
+      border-radius: var(--radius-md);
+      cursor: pointer;
+      transition: background-color 0.15s ease;
+    }
+    .track-strip:hover { background: rgba(0, 0, 0, 0.6); }
+
+    .art-wrap {
+      position: relative;
+      width: 40px;
+      height: 40px;
+      border-radius: 6px;
+      overflow: hidden;
+      flex-shrink: 0;
+      background: #282828;
+    }
+    .art-wrap img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      display: block;
+    }
+    .art-play-overlay {
+      position: absolute;
+      inset: 0;
+      background: rgba(0, 0, 0, 0.55);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      opacity: 0;
+      transition: opacity 0.15s ease;
+      color: var(--accent);
+      font-size: 14px;
+    }
+    .card:hover .art-play-overlay,
+    .card.active .art-play-overlay { opacity: 1; }
+
+    .track-strip-info { min-width: 0; flex: 1; }
+    .track-strip-name {
+      font-size: 12.5px;
+      font-weight: 700;
+      color: var(--text-base);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .track-strip-sub {
+      font-size: 11px;
+      color: var(--text-subdued);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    /* Curator Card Inputs */
+    .curator-card { gap: 7px; }
+    .curator-row {
+      display: flex;
+      gap: 6px;
+      align-items: center;
+    }
+    .curator-card textarea {
+      resize: none;
+      flex: 1;
+      min-height: 42px;
+      font-size: 12.5px;
+    }
+    .selected-pill {
+      font-size: 12px;
+      font-weight: 600;
+      background: rgba(0, 0, 0, 0.35);
+      padding: 6px 10px;
+      border-radius: var(--radius-md);
+      color: var(--text-subdued);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .selected-pill.has-track { color: var(--accent); }
+
+    .timestamp-picker {
+      display: grid;
+      grid-template-columns: 42px 1fr;
+      gap: 8px;
+      align-items: center;
+    }
+    .timestamp-label { font-size: 11px; color: var(--text-subdued); text-align: center; font-variant-numeric: tabular-nums; }
+
+    input[type="range"] {
+      --progress: 0%;
+      appearance: none;
+      height: 4px;
+      padding: 0;
+      border: 0;
+      border-radius: 99px;
+      background: linear-gradient(90deg, var(--accent) var(--progress), #535353 var(--progress));
+      cursor: pointer;
+    }
+    input[type="range"]::-webkit-slider-thumb {
+      appearance: none;
+      width: 13px;
+      height: 13px;
+      border-radius: 50%;
+      background: white;
+      box-shadow: 0 1px 5px #000;
+    }
+
+    /* Bottom Spotify Playback Bar */
+    #player-bar {
+      height: 72px;
+      background: var(--bg-base);
+      padding: 0 16px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 16px;
+      position: relative;
+      z-index: 2;
+      flex-shrink: 0;
+    }
+
+    @media (max-width: 768px) {
+      #player-bar {
+        position: fixed;
+        bottom: 8px;
+        left: 8px;
+        right: 8px;
+        height: 62px;
+        background: #242424;
+        border-radius: var(--radius-md);
+        box-shadow: 0 8px 24px rgba(0, 0, 0, 0.65);
+        padding: 0 12px;
+        z-index: 50;
+      }
+    }
+
+    .player-meta {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      min-width: 0;
+    }
+    .player-meta img {
+      width: 48px;
+      height: 48px;
+      border-radius: 6px;
+      display: none;
+      object-fit: cover;
+    }
+    @media (max-width: 768px) {
+      .player-meta img { width: 42px; height: 42px; }
+    }
+
+    .player-controls {
+      display: grid;
+      grid-template-columns: auto minmax(180px, 420px) auto auto;
+      align-items: center;
+      gap: 8px;
+      flex: 1;
+      justify-content: end;
+    }
+    #np-clock {
+      font-size: 12px;
+      color: var(--text-subdued);
+      font-variant-numeric: tabular-nums;
+    }
+    #np-duration { font-size: 12px; color: var(--text-subdued); font-variant-numeric: tabular-nums; }
+    #seek-bar { width: min(36vw, 420px); }
+
+    /* Search Modal */
+    .modal-backdrop {
+      position: fixed;
+      inset: 0;
+      background: rgba(0, 0, 0, 0.8);
+      backdrop-filter: blur(4px);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 16px;
+      z-index: 100;
+    }
+    .modal {
+      background: var(--bg-elevated);
+      border-radius: var(--radius-lg);
+      width: min(440px, 100%);
+      padding: 18px;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      box-shadow: 0 16px 40px rgba(0, 0, 0, 0.7);
+    }
+    .search-results {
+      max-height: 280px;
+      overflow-y: auto;
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+    .search-item {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 7px 8px;
+      border-radius: var(--radius-md);
+      cursor: pointer;
+      transition: background-color 0.12s ease;
+    }
+    .search-item:hover { background: var(--bg-highlight); }
+    .search-item img { width: 40px; height: 40px; border-radius: 4px; object-fit: cover; }
+    .search-item.artist img { border-radius: 50%; }
+
+    @media (max-width: 768px) {
+      .curator-meta { align-items: stretch; flex-direction: column; }
+      .artist-chip { max-width: 100%; }
+      .player-controls { grid-template-columns: auto minmax(72px, 1fr) auto; }
+      #seek-bar { width: 100%; }
+      #np-duration { display: none; }
+    }
+  </style>
+</head>
+<body>
+
+  <div id="artist-backdrop" class="artist-backdrop" aria-hidden="true"></div>
+
+  <div class="app-shell">
+    <header>
+      <div class="header-left">
+        <h1 id="page-title">8-Track Mystery Box</h1>
+        <p id="page-subtitle">Curate 8 reasons & timestamps to convince a friend.</p>
+      </div>
+
+      <div class="header-actions">
+        <button id="login-btn">Log In with Spotify</button>
+        <button id="share-btn" class="hidden">Copy Share Link</button>
+        <button id="download-btn" class="ghost hidden">Save .TXT</button>
+        <button id="new-box-btn" class="ghost hidden">Create New Box</button>
+      </div>
+    </header>
+
+    <!-- Curator-only box subject input -->
+    <div id="curator-bar" class="curator-meta hidden">
+      <div id="artist-chip" class="artist-chip hidden"><img id="artist-image" alt="" /><span id="artist-name"></span></div>
+      <button id="artist-search-btn" class="ghost">Choose Artist</button>
+      <span id="status-text"></span>
+    </div>
+
+    <!-- 8-Slot Grid -->
+    <div id="grid" class="grid-8"></div>
+  </div>
+
+  <!-- Spotify Bottom Playback Bar -->
+  <div id="player-bar">
+    <div class="player-meta">
+      <img id="np-art" src="" alt="" />
+      <div style="min-width:0;">
+        <div id="np-title" style="font-size:13.5px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">Not playing</div>
+        <div id="np-artist" style="font-size:11.5px;color:var(--text-subdued);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">Log in with Spotify Premium to stream</div>
+      </div>
+    </div>
+    <div class="player-controls">
+      <span id="np-clock">0:00</span>
+      <input id="seek-bar" type="range" min="0" max="1" value="0" aria-label="Playback position" disabled />
+      <span id="np-duration">0:00</span>
+      <button id="play-pause-btn" disabled>Play</button>
+    </div>
+  </div>
+
+  <!-- Track Search Modal -->
+  <div id="search-modal" class="modal-backdrop hidden">
+    <div class="modal">
+      <div style="display:flex;justify-content:space-between;align-items:center;">
+        <strong id="modal-slot-label" style="font-size:15px;">Pick Song for Slot #1</strong>
+        <button class="ghost" style="padding:5px 12px;font-size:12px;" onclick="closeSearch()">Close</button>
+      </div>
+      <div style="display:flex;gap:8px;">
+        <input id="search-input" type="text" placeholder="What do you want to play?" />
+        <button onclick="runSearch()">Search</button>
+      </div>
+      <div id="search-results" class="search-results"></div>
+    </div>
+  </div>
+
+  <script src="https://sdk.scdn.co/spotify-player.js"></script>
+  <script>
+    // ====================================================
+    // 1. CONFIG & STATE
+    // ====================================================
+    const CLIENT_ID = 'dfa533786a314dafb7162df161a885fd';
+    const REDIRECT_URI = window.location.origin + window.location.pathname;
+    const SCOPES = 'streaming user-read-email user-read-private user-modify-playback-state';
+    const STORAGE_KEY = 'mystery_box_draft_v1';
+
+    let player = null;
+    let deviceId = null;
+    let currentPositionMs = 0;
+    let currentDurationMs = 0;
+    let activeSlot = null;
+    let searchTargetSlot = 0;
+    let searchType = 'track';
+    let mode = 'curator';
+
+    let boxData = {
+      subject: '',
+      artist: { id: '', name: '', image: '' },
+      slots: Array.from({ length: 8 }, () => ({
+        trackId: '',
+        trackName: '',
+        artistName: '',
+        albumArt: '',
+        durationMs: 0,
+        timeStr: '0:00',
+        reason: ''
+      }))
+    };
+
+    let revealed = Array(8).fill(false);
+
+    // ====================================================
+    // 2. TIMESTAMP & URL ENCODING HELPERS
+    // ====================================================
+    function timeStrToMs(str) {
+      if (!str) return 0;
+      const parts = str.trim().split(':').map(Number);
+      if (parts.some(isNaN)) return 0;
+      if (parts.length === 2) return (parts[0] * 60 + parts[1]) * 1000;
+      if (parts.length === 1) return parts[0] * 1000;
+      return 0;
+    }
+
+    function msToTimeStr(ms) {
+      const totalSec = Math.floor((ms || 0) / 1000);
+      const m = Math.floor(totalSec / 60);
+      const s = String(totalSec % 60).padStart(2, '0');
+      return `${m}:${s}`;
+    }
+
+    function updateRangeFill(input) {
+      const max = Number(input.max) || 1;
+      input.style.setProperty('--progress', `${(Number(input.value) / max) * 100}%`);
+    }
+
+    function normalizeBox(data) {
+      const artist = data?.artist || { id: '', name: data?.subject || '', image: '' };
+      return {
+        subject: artist.name || data?.subject || '',
+        artist: { id: artist.id || '', name: artist.name || data?.subject || '', image: artist.image || '' },
+        slots: Array.from({ length: 8 }, (_, i) => ({
+          trackId: '', trackName: '', artistName: '', albumArt: '', durationMs: 0, timeStr: '0:00', reason: '',
+          ...(data?.slots?.[i] || {})
+        }))
+      };
+    }
+
+    function encodeBox(data) {
+      const compact = {
+        v: 2,
+        a: [data.artist?.id || '', data.artist?.name || data.subject, data.artist?.image || ''],
+        items: data.slots.map(x => [x.trackId, x.timeStr, x.reason, x.trackName, x.artistName, x.albumArt, x.durationMs || 0])
+      };
+      const bytes = new TextEncoder().encode(JSON.stringify(compact));
+      let bin = '';
+      bytes.forEach(b => bin += String.fromCharCode(b));
+      return btoa(bin).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+    }
+
+    function decodeBox(encoded) {
+      const b64 = encoded.replace(/-/g, '+').replace(/_/g, '/');
+      const bin = atob(b64);
+      const bytes = Uint8Array.from(bin, c => c.charCodeAt(0));
+      const compact = JSON.parse(new TextDecoder().decode(bytes));
+      return normalizeBox({
+        subject: compact.a?.[1] || compact.s || 'this artist',
+        artist: compact.a ? { id: compact.a[0], name: compact.a[1], image: compact.a[2] } : undefined,
+        slots: Array.from({ length: 8 }, (_, i) => {
+          const item = compact.items?.[i] || ['', '0:00', ''];
+          return {
+            trackId: item[0] || '',
+            trackName: item[3] || 'Loading...',
+            artistName: item[4] || '',
+            albumArt: item[5] || '',
+            durationMs: item[6] || 0,
+            timeStr: item[1] || '0:00',
+            reason: item[2] || ''
+          };
+        })
+      });
+    }
+
+    // ====================================================
+    // 3. DOWNLOAD .TXT BACKUP & RESET FLOW
+    // ====================================================
+    function downloadBoxAsTxt(prefix = 'mystery-box') {
+      const title = boxData.subject || 'Untitled Artist';
+      const lines = [
+        `WHY YOU NEED TO LISTEN TO: ${title.toUpperCase()}`,
+        `Exported: ${new Date().toLocaleString()}`,
+        `Share URL: ${window.location.href}`,
+        '====================================================',
+        ''
+      ];
+
+      boxData.slots.forEach((slot, i) => {
+        lines.push(`REASON #${i + 1} (Timestamp: ${slot.timeStr || '0:00'})`);
+        lines.push(`Song: ${slot.trackName || '(Not selected)'} — ${slot.artistName || ''}`);
+        if (slot.trackId) lines.push(`Spotify Link: https://open.spotify.com/track/${slot.trackId}`);
+        lines.push(`Why listen: ${slot.reason || '(No note)'}`);
+        lines.push('----------------------------------------------------');
+      });
+
+      const blob = new Blob([lines.join('\n')], { type: 'text/plain;charset=utf-8' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      const safeName = title.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') || 'artist';
+      a.href = url;
+      a.download = `${prefix}-${safeName}.txt`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+    }
+
+    document.getElementById('download-btn').addEventListener('click', () => {
+      downloadBoxAsTxt('saved-box');
+    });
+
+    document.getElementById('new-box-btn').addEventListener('click', () => {
+      const ok = confirm(
+        'This will download a .txt backup of the current box so you keep a copy, and then start a fresh empty box. Continue?'
+      );
+      if (!ok) return;
+
+      downloadBoxAsTxt('backup-box');
+      localStorage.removeItem(STORAGE_KEY);
+      window.history.replaceState({}, document.title, window.location.pathname);
+
+      boxData = {
+        subject: '',
+        artist: { id: '', name: '', image: '' },
+        slots: Array.from({ length: 8 }, () => ({
+          trackId: '', trackName: '', artistName: '', albumArt: '', durationMs: 0, timeStr: '0:00', reason: ''
+        }))
+      };
+      revealed = Array(8).fill(false);
+      mode = 'curator';
+      renderUI();
+    });
+
+    // ====================================================
+    // 4. RENDERING (CURATOR VS LISTENER)
+    // ====================================================
+    function renderUI() {
+      const titleEl = document.getElementById('page-title');
+      const subEl = document.getElementById('page-subtitle');
+      const curatorBar = document.getElementById('curator-bar');
+      const shareBtn = document.getElementById('share-btn');
+      const downloadBtn = document.getElementById('download-btn');
+      const newBoxBtn = document.getElementById('new-box-btn');
+      const artistName = boxData.artist?.name || boxData.subject || 'this artist';
+      const backdrop = document.getElementById('artist-backdrop');
+      const artistImage = boxData.artist?.image || '';
+      backdrop.style.backgroundImage = artistImage ? `url("${artistImage.replace(/"/g, '%22')}")` : '';
+      backdrop.classList.toggle('visible', Boolean(artistImage));
+      document.getElementById('artist-chip').classList.toggle('hidden', !boxData.artist?.name);
+      document.getElementById('artist-name').textContent = boxData.artist?.name || '';
+      document.getElementById('artist-image').src = artistImage;
+      document.getElementById('artist-search-btn').textContent = boxData.artist?.id ? 'Change Artist' : 'Choose Artist';
+
+      if (mode === 'listener') {
+        titleEl.textContent = `Why you need to listen to ${artistName}`;
+        subEl.textContent = 'Select a mystery box to reveal the reason and hear the exact moment.';
+        curatorBar.classList.add('hidden');
+        shareBtn.classList.add('hidden');
+        downloadBtn.classList.remove('hidden');
+        newBoxBtn.classList.remove('hidden');
+        renderListenerGrid();
+      } else {
+        titleEl.textContent = 'Create an 8-Track Mystery Box';
+        subEl.textContent = 'Pick 8 songs, set exact timestamps, and share the generated link.';
+        curatorBar.classList.remove('hidden');
+        shareBtn.classList.remove('hidden');
+        downloadBtn.classList.remove('hidden');
+        newBoxBtn.classList.remove('hidden');
+        renderCuratorGrid();
+      }
+    }
+
+    function renderListenerGrid() {
+      const grid = document.getElementById('grid');
+      grid.innerHTML = '';
+
+      boxData.slots.forEach((slot, i) => {
+        const card = document.createElement('div');
+        card.className = 'card' + (activeSlot === i ? ' active' : '');
+
+        if (!revealed[i]) {
+          card.classList.add('sealed-card');
+          card.innerHTML = `
+            <div class="sealed-badge">Mystery Box</div>
+            <div class="sealed-title">Reason ${i + 1}</div>
+            <button ${!slot.trackId ? 'disabled' : ''}>▶ Reveal</button>
+          `;
+          card.onclick = () => {
+            if (!slot.trackId) return;
+            revealed[i] = true;
+            renderListenerGrid();
+            playSlot(i);
+          };
+        } else {
+          card.innerHTML = `
+            <div class="card-header-row">
+              <span class="card-tag">Reason #${i + 1} · @ ${slot.timeStr || '0:00'}</span>
+            </div>
+            <div class="reason-text">${escapeHtml(slot.reason || 'Listen closely to this part.')}</div>
+            <div class="track-strip" onclick="playSlot(${i})" title="Play from ${slot.timeStr || '0:00'}">
+              <div class="art-wrap">
+                <img src="${escapeHtml(slot.albumArt || '')}" alt="${escapeHtml(slot.trackName || 'Album')} cover" onerror="this.style.display='none'" />
+                <div class="art-play-overlay">▶</div>
+              </div>
+              <div class="track-strip-info">
+                <div class="track-strip-name">${escapeHtml(slot.trackName)}</div>
+                <div class="track-strip-sub">${escapeHtml(slot.artistName)}</div>
+              </div>
+            </div>
+          `;
+        }
+        grid.appendChild(card);
+      });
+    }
+
+    function renderCuratorGrid() {
+      const grid = document.getElementById('grid');
+      grid.innerHTML = '';
+
+      boxData.slots.forEach((slot, i) => {
+        const card = document.createElement('div');
+        card.className = 'card curator-card' + (activeSlot === i ? ' active' : '');
+
+        const hasTrack = Boolean(slot.trackId);
+        const duration = Math.max(Number(slot.durationMs) || 0, 1000);
+        const timestamp = Math.min(timeStrToMs(slot.timeStr), duration);
+        const trackLabel = hasTrack
+          ? `${slot.trackName} — ${slot.artistName}`
+          : 'No song selected';
+
+        card.innerHTML = `
+          <div class="curator-row" style="justify-content:space-between;">
+            <span class="card-tag">Slot #${i + 1}</span>
+            <div class="curator-row">
+              <button class="ghost" style="padding:4px 10px;font-size:11px;" onclick="openSearch(${i})">Find Song</button>
+              <button style="padding:4px 10px;font-size:11px;" onclick="playSlot(${i})" ${!hasTrack ? 'disabled' : ''}>▶ Test</button>
+            </div>
+          </div>
+
+          <div class="selected-pill ${hasTrack ? 'has-track' : ''}" title="${escapeHtml(trackLabel)}">${escapeHtml(trackLabel)}</div>
+
+          <div class="timestamp-picker">
+            <span id="timestamp-${i}" class="timestamp-label">${msToTimeStr(timestamp)}</span>
+            <input type="range" min="0" max="${duration}" step="1000" value="${timestamp}"
+              ${hasTrack ? '' : 'disabled'} aria-label="Start time for reason ${i + 1}"
+              oninput="previewTimestamp(${i}, this)" onchange="saveTimestamp(${i}, this.value)" />
+          </div>
+
+          <textarea maxlength="600" placeholder="Why should they listen here?"
+            oninput="updateSlotField(${i}, 'reason', this.value)">${escapeHtml(slot.reason)}</textarea>
+        `;
+        grid.appendChild(card);
+      });
+      grid.querySelectorAll('input[type="range"]').forEach(updateRangeFill);
+    }
+
+    function previewTimestamp(index, input) {
+      document.getElementById(`timestamp-${index}`).textContent = msToTimeStr(Number(input.value));
+      updateRangeFill(input);
+    }
+
+    function saveTimestamp(index, value) {
+      boxData.slots[index].timeStr = msToTimeStr(Number(value));
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(boxData));
+    }
+
+    function updateSlotField(index, field, value) {
+      boxData.slots[index][field] = value;
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(boxData));
+    }
+
+    function grabCurrentTime(index) {
+      boxData.slots[index].timeStr = msToTimeStr(currentPositionMs);
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(boxData));
+      renderCuratorGrid();
+    }
+
+    document.getElementById('share-btn').addEventListener('click', async () => {
+      if (!boxData.artist?.id) {
+        alert('Choose a specific Spotify artist first.');
+        return;
+      }
+      const encoded = encodeBox(boxData);
+      const shareUrl = `${window.location.origin}${window.location.pathname}?box=${encoded}`;
+      try {
+        await navigator.clipboard.writeText(shareUrl);
+        document.getElementById('status-text').textContent = '✓ Share link copied!';
+        setTimeout(() => { document.getElementById('status-text').textContent = ''; }, 3500);
+      } catch {
+        prompt('Copy this share link:', shareUrl);
+      }
+    });
+
+    function escapeHtml(str) {
+      return String(str || '')
+        .replace(/&/g, '&amp;').replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+    }
+
+    // ====================================================
+    // 5. SPOTIFY SEARCH & METADATA HYDRATION
+    // ====================================================
+    async function openSearch(slotIndex) {
+      const token = await getValidSpotifyToken();
+      if (!token) {
+        alert('Please log in with Spotify first so you can search tracks.');
+        return;
+      }
+      searchTargetSlot = slotIndex;
+      searchType = 'track';
+      document.getElementById('modal-slot-label').textContent = `Pick Song for Slot #${slotIndex + 1}`;
+      document.getElementById('search-input').placeholder = 'Search for a song';
+      document.getElementById('search-results').innerHTML = '';
+      document.getElementById('search-modal').classList.remove('hidden');
+      document.getElementById('search-input').focus();
+    }
+
+    async function openArtistSearch() {
+      const token = await getValidSpotifyToken();
+      if (!token) {
+        alert('Please log in with Spotify first so you can choose an artist.');
+        return;
+      }
+      searchType = 'artist';
+      document.getElementById('modal-slot-label').textContent = 'Choose the Artist';
+      document.getElementById('search-input').placeholder = 'Search for an artist';
+      document.getElementById('search-results').innerHTML = '';
+      document.getElementById('search-modal').classList.remove('hidden');
+      document.getElementById('search-input').focus();
+    }
+
+    document.getElementById('artist-search-btn').addEventListener('click', openArtistSearch);
+
+    function closeSearch() {
+      document.getElementById('search-modal').classList.add('hidden');
+    }
+
+    document.getElementById('search-input').addEventListener('keydown', e => {
+      if (e.key === 'Enter') runSearch();
+    });
+
+    async function runSearch() {
+      const q = document.getElementById('search-input').value.trim();
+      const token = await getValidSpotifyToken();
+      if (!q || !token) return;
+
+      const resultsEl = document.getElementById('search-results');
+      resultsEl.innerHTML = '<div style="font-size:12px;color:var(--text-subdued);padding:6px;">Searching...</div>';
+
+      const res = await fetch(
+        `https://api.spotify.com/v1/search?q=${encodeURIComponent(q)}&type=${searchType}&limit=8`,
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
+      if (!res.ok) {
+        resultsEl.innerHTML = '<div style="font-size:12px;color:#f88;padding:6px;">Search failed. Your Spotify login may have expired.</div>';
+        return;
+      }
+      const data = await res.json();
+      const items = searchType === 'artist' ? (data.artists?.items || []) : (data.tracks?.items || []);
+
+      resultsEl.innerHTML = '';
+      items.forEach(t => {
+        const isArtist = searchType === 'artist';
+        const images = isArtist ? t.images : t.album?.images;
+        const img = images?.find(x => x.width <= 320)?.url || images?.[0]?.url || '';
+        const artists = isArtist ? `${Number(t.followers?.total || 0).toLocaleString()} followers` : t.artists.map(a => a.name).join(', ');
+        const row = document.createElement('div');
+        row.className = `search-item${isArtist ? ' artist' : ''}`;
+        row.innerHTML = `
+          <img src="${img}" alt="" />
+          <div style="min-width:0;flex:1;">
+            <div style="font-size:13px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${escapeHtml(t.name)}</div>
+            <div style="font-size:11.5px;color:var(--text-subdued);">${escapeHtml(artists)}</div>
+          </div>
+        `;
+        row.onclick = () => {
+          if (isArtist) {
+            boxData.artist = { id: t.id, name: t.name, image: img };
+            boxData.subject = t.name;
+          } else {
+            boxData.slots[searchTargetSlot].trackId = t.id;
+            boxData.slots[searchTargetSlot].trackName = t.name;
+            boxData.slots[searchTargetSlot].artistName = artists;
+            boxData.slots[searchTargetSlot].albumArt = img;
+            boxData.slots[searchTargetSlot].durationMs = t.duration_ms || 0;
+            if (timeStrToMs(boxData.slots[searchTargetSlot].timeStr) > t.duration_ms) {
+              boxData.slots[searchTargetSlot].timeStr = '0:00';
+            }
+          }
+          localStorage.setItem(STORAGE_KEY, JSON.stringify(boxData));
+          closeSearch();
+          renderUI();
+        };
+        resultsEl.appendChild(row);
+      });
+    }
+
+    async function hydrateTracks(token) {
+      const ids = [...new Set(boxData.slots.map(s => s.trackId).filter(Boolean))];
+      if (!ids.length) return;
+
+      const res = await fetch(`https://api.spotify.com/v1/tracks?ids=${ids.join(',')}`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      const data = await res.json();
+      const map = {};
+      (data.tracks || []).forEach(t => { if (t) map[t.id] = t; });
+
+      boxData.slots.forEach(slot => {
+        const t = map[slot.trackId];
+        if (t) {
+          slot.trackName = t.name;
+          slot.artistName = t.artists.map(a => a.name).join(', ');
+          slot.albumArt = t.album?.images?.[1]?.url || t.album?.images?.[0]?.url || '';
+          slot.durationMs = t.duration_ms || 0;
+        }
+      });
+      renderUI();
+    }
+
+    // ====================================================
+    // 6. SPOTIFY PLAYBACK AT EXACT TIMESTAMP
+    // ====================================================
+    async function playSlot(index) {
+      const slot = boxData.slots[index];
+      if (!slot.trackId) return;
+
+      const token = await getValidSpotifyToken();
+      if (!token || !deviceId) {
+        alert('Log in with Spotify Premium first to play tracks.');
+        return;
+      }
+
+      activeSlot = index;
+      mode === 'listener' ? renderListenerGrid() : renderCuratorGrid();
+
+      await fetch(`https://api.spotify.com/v1/me/player/play?device_id=${deviceId}`, {
+        method: 'PUT',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          uris: [`spotify:track:${slot.trackId}`],
+          position_ms: timeStrToMs(slot.timeStr)
+        })
+      });
+    }
+
+    // ====================================================
+    // 7. PKCE AUTH & WEB PLAYBACK SDK
+    // ====================================================
+    function generateRandomString(len) {
+      const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
+      const vals = crypto.getRandomValues(new Uint8Array(len));
+      return vals.reduce((acc, x) => acc + chars[x % chars.length], '');
+    }
+
+    async function generateCodeChallenge(verifier) {
+      const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(verifier));
+      return btoa(String.fromCharCode(...new Uint8Array(digest)))
+        .replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+    }
+
+    async function getValidSpotifyToken() {
+      const token = localStorage.getItem('spotify_access_token');
+      const expiry = Number(localStorage.getItem('spotify_expires_at') || 0);
+      if (token && Date.now() < expiry - 60000) return token;
+
+      const refreshToken = localStorage.getItem('spotify_refresh_token');
+      if (!refreshToken) return null;
+      const res = await fetch('https://accounts.spotify.com/api/token', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: new URLSearchParams({
+          client_id: CLIENT_ID,
+          grant_type: 'refresh_token',
+          refresh_token: refreshToken
+        })
+      });
+      if (!res.ok) return null;
+      const data = await res.json();
+      localStorage.setItem('spotify_access_token', data.access_token);
+      localStorage.setItem('spotify_expires_at', String(Date.now() + data.expires_in * 1000));
+      if (data.refresh_token) localStorage.setItem('spotify_refresh_token', data.refresh_token);
+      return data.access_token;
+    }
+
+    document.getElementById('login-btn').addEventListener('click', async () => {
+      const boxParam = new URLSearchParams(window.location.search).get('box');
+      if (boxParam) sessionStorage.setItem('pending_box_param', boxParam);
+
+      const verifier = generateRandomString(64);
+      const challenge = await generateCodeChallenge(verifier);
+      localStorage.setItem('code_verifier', verifier);
+
+      const params = new URLSearchParams({
+        client_id: CLIENT_ID,
+        response_type: 'code',
+        redirect_uri: REDIRECT_URI,
+        scope: SCOPES,
+        code_challenge_method: 'S256',
+        code_challenge: challenge
+      });
+      window.location.href = `https://accounts.spotify.com/authorize?${params}`;
+    });
+
+    async function initAuthAndState() {
+      const urlParams = new URLSearchParams(window.location.search);
+      const code = urlParams.get('code');
+      let boxParam = urlParams.get('box') || sessionStorage.getItem('pending_box_param');
+
+      if (code) {
+        const verifier = localStorage.getItem('code_verifier');
+        const res = await fetch('https://accounts.spotify.com/api/token', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+          body: new URLSearchParams({
+            client_id: CLIENT_ID,
+            grant_type: 'authorization_code',
+            code,
+            redirect_uri: REDIRECT_URI,
+            code_verifier: verifier
+          })
+        });
+        const data = await res.json();
+        if (data.access_token) {
+          localStorage.setItem('spotify_access_token', data.access_token);
+          localStorage.setItem('spotify_expires_at', String(Date.now() + data.expires_in * 1000));
+          if (data.refresh_token) localStorage.setItem('spotify_refresh_token', data.refresh_token);
+          localStorage.removeItem('code_verifier');
+          sessionStorage.removeItem('pending_box_param');
+
+          const cleanUrl = boxParam
+            ? `${window.location.pathname}?box=${boxParam}`
+            : window.location.pathname;
+          window.history.replaceState({}, document.title, cleanUrl);
+        }
+      }
+
+      if (boxParam) {
+        try {
+          boxData = decodeBox(boxParam);
+          mode = 'listener';
+        } catch (e) {
+          console.error('Invalid box parameter:', e);
+        }
+      } else {
+        const saved = localStorage.getItem(STORAGE_KEY);
+        if (saved) {
+          try { boxData = normalizeBox(JSON.parse(saved)); } catch {}
+        }
+      }
+
+      renderUI();
+
+      const token = await getValidSpotifyToken();
+      if (token) {
+        document.getElementById('login-btn').classList.add('hidden');
+        hydrateTracks(token);
+        if (window.Spotify) setupPlayer(token);
+      }
+    }
+
+    window.onSpotifyWebPlaybackSDKReady = async () => {
+      const token = await getValidSpotifyToken();
+      if (token) setupPlayer(token);
+    };
+
+    function setupPlayer(token) {
+      if (player) return;
+      player = new Spotify.Player({
+        name: '8-Track Mystery Box',
+        getOAuthToken: async cb => cb(await getValidSpotifyToken() || token),
+        volume: 0.8
+      });
+
+      player.addListener('ready', ({ device_id }) => {
+        deviceId = device_id;
+        document.getElementById('play-pause-btn').disabled = false;
+        document.getElementById('np-artist').textContent = 'Ready — click any box to play';
+      });
+
+      player.addListener('player_state_changed', state => {
+        if (!state) return;
+        const t = state.track_window.current_track;
+        currentPositionMs = state.position;
+        currentDurationMs = state.duration || t.duration_ms || 0;
+        document.getElementById('np-title').textContent = t.name;
+        document.getElementById('np-artist').textContent = t.artists.map(a => a.name).join(', ');
+        document.getElementById('play-pause-btn').textContent = state.paused ? 'Play' : 'Pause';
+
+        const img = t.album?.images?.[0]?.url;
+        const art = document.getElementById('np-art');
+        if (img) { art.src = img; art.style.display = 'block'; }
+        updatePlaybackProgress();
+      });
+
+      player.connect();
+
+      setInterval(async () => {
+        if (!player) return;
+        const state = await player.getCurrentState();
+        if (state && !state.paused) {
+          currentPositionMs = state.position;
+          currentDurationMs = state.duration || currentDurationMs;
+          updatePlaybackProgress();
+        }
+      }, 1000);
+    }
+
+    function updatePlaybackProgress() {
+      document.getElementById('np-clock').textContent = msToTimeStr(currentPositionMs);
+      document.getElementById('np-duration').textContent = msToTimeStr(currentDurationMs);
+      const seek = document.getElementById('seek-bar');
+      seek.max = Math.max(currentDurationMs, 1);
+      seek.value = Math.min(currentPositionMs, currentDurationMs || 0);
+      seek.disabled = !currentDurationMs;
+      updateRangeFill(seek);
+    }
+
+    document.getElementById('seek-bar').addEventListener('input', e => {
+      document.getElementById('np-clock').textContent = msToTimeStr(Number(e.target.value));
+      updateRangeFill(e.target);
+    });
+
+    document.getElementById('seek-bar').addEventListener('change', async e => {
+      if (!player) return;
+      currentPositionMs = Number(e.target.value);
+      await player.seek(currentPositionMs);
+      updatePlaybackProgress();
+    });
+
+    document.getElementById('play-pause-btn').addEventListener('click', () => {
+      if (player) player.togglePlay();
+    });
+
+    initAuthAndState();
+  </script>
+</body>
+</html>
