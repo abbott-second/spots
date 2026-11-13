@@ -592,7 +592,7 @@
     // ====================================================
     // 1. CONFIG & STATE
     // ====================================================
-    const CLIENT_ID = 'dfa533786a314dafb7162df161a885fd';
+    const CLIENT_ID = '6aa78b09d46c4be994a42c0548cdc9cc';
     const REDIRECT_URI = window.location.origin + window.location.pathname;
     const SCOPES = 'streaming user-read-email user-read-private user-modify-playback-state';
     const STORAGE_KEY = 'mystery_box_draft_v1';
